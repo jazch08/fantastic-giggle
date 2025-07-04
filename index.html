@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Distributivo Docente</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.2/js/all.min.js"
+    crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+
+<body class="bg-gradient-to-br from-gray-100 to-gray-200 min-h-screen p-6 font-sans">
+  <div class="max-w-3xl mx-auto">
+    <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Calculadora de Distributivo Docente</h1>
+
+    <label for="docenteSelect" class="block mb-2 text-gray-700 font-medium">Selecciona un Docente:</label>
+    <select id="docenteSelect"
+      class="p-3 border border-gray-300 rounded-lg mb-4 w-full focus:outline-none focus:ring focus:ring-blue-300"></select>
+
+    <div class="flex gap-4 mb-6">
+      <button id="btnExportarPDF" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+        <i class="fas fa-file-pdf mr-2"></i>Exportar PDF actual
+      </button>
+      <button id="btnExportarCSV" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+        <i class="fas fa-file-csv mr-2"></i>Exportar CSV general
+      </button>
+    </div>
+
+    <div id="formulario" class="bg-white rounded-xl shadow-md p-6 border border-gray-200" style="display: none;">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div><label class="block font-semibold text-gray-700 mb-1">Horas Clase:</label><input type="number"
+            id="horasClase" class="border border-gray-300 p-2 rounded w-full" /></div>
+        <div><label class="block font-semibold text-gray-700 mb-1">Horas Investigación:</label><input type="number"
+            id="horasInvestigacion" class="border border-gray-300 p-2 rounded w-full" /></div>
+        <div><label class="block font-semibold text-gray-700 mb-1">Horas Gestión:</label><input type="number"
+            id="horasGestion" class="border border-gray-300 p-2 rounded w-full" /></div>
+        <div><label class="block font-semibold text-gray-700 mb-1">Horas Vinculación:</label><input type="number"
+            id="horasVinculacion" class="border border-gray-300 p-2 rounded w-full" /></div>
+      </div>
+      <hr class="my-6 border-t border-gray-300" />
+      <div class="space-y-2 text-gray-800" id="resumenDatos">
+        <div class="flex justify-between font-medium"><span>Horas Planificación:</span><span
+            id="horasPlanificacion"></span></div>
+        <div class="flex justify-between font-medium"><span>Horas Tutorías:</span><span id="horasTutorias"></span></div>
+        <div class="flex justify-between font-medium"><span>Horas AOD:</span><span id="horasOAD"></span></div>
+        <div class="flex justify-between font-semibold text-blue-700"><span>Total Horas Docencia:</span><span
+            id="totalDocencia"></span></div>
+        <div class="flex justify-between font-semibold" id="bloqueTotalAnual"><span>Total Horas Anuales:</span><span
+            id="totalAnual"></span></div>
+        <div class="flex justify-between font-bold" id="bloquePorcentajeDocencia">
+          <span>Porcentaje Docencia:</span>
+          <div><span id="porcentajeDocencia"></span>%</div>
+        </div>
+        <div id="mensajeAdvertencia" class="text-sm text-red-600 font-medium hidden">⚠️ El porcentaje de docencia debe
+          ser mayor al 60%</div>
+        <div id="mensajeHorasAdvertencia" class="text-sm text-red-600 font-medium hidden">⚠️ El total de horas anuales
+          debe ser igual a 1920</div>
+        <div id="mensajeConfirmacion" class="text-sm text-green-700 font-medium hidden"><i
+            class="fas fa-check-circle"></i> Todo está correcto: el porcentaje de docencia es válido y el total de horas
+          es 1920.</div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="mt-12 text-center text-gray-600">
+    <p>Desarrollado por Jazch08</p>
+    <p>© 2025</p>
+  </footer>
+
+  <script>
+    const url = "https://raw.githubusercontent.com/jazch08/fantastic-giggle/main/Base_Anonimizada.csv";
+    const select = document.getElementById("docenteSelect");
+    const form = document.getElementById("formulario");
+
+    const camposEntrada = {
+      clase: document.getElementById("horasClase"),
+      investigacion: document.getElementById("horasInvestigacion"),
+      gestion: document.getElementById("horasGestion"),
+      vinculacion: document.getElementById("horasVinculacion"),
+    };
+
+    const camposSalida = {
+      planificacion: document.getElementById("horasPlanificacion"),
+      tutorias: document.getElementById("horasTutorias"),
+      oad: document.getElementById("horasOAD"),
+      totalDocencia: document.getElementById("totalDocencia"),
+      totalAnual: document.getElementById("totalAnual"),
+      porcentaje: document.getElementById("porcentajeDocencia"),
+    };
+
+    const bloqueTotalAnual = document.getElementById("bloqueTotalAnual");
+    const bloquePorcentajeDocencia = document.getElementById("bloquePorcentajeDocencia");
+    const mensajeAdvertencia = document.getElementById("mensajeAdvertencia");
+    const mensajeHorasAdvertencia = document.getElementById("mensajeHorasAdvertencia");
+    const mensajeConfirmacion = document.getElementById("mensajeConfirmacion");
+
+    const btnExportarPDF = document.getElementById("btnExportarPDF");
+    const btnExportarCSV = document.getElementById("btnExportarCSV");
+
+    let docentes = [];
+    let docenteActual = null;
+
+    function cargarDatos() {
+      fetch(url)
+        .then(r => r.text())
+        .then(csvText => {
+          const parsed = Papa.parse(csvText, { header: true, skipEmptyLines: true });
+          const rawDocentes = parsed.data;
+
+          docentes = rawDocentes
+            .filter(f => f["IDENTIFICACIÓN"] && f["IDENTIFICACIÓN"].trim() !== "")
+            .map(f => {
+              const docente = {
+                id: f["IDENTIFICACIÓN"],
+                horasClase: Number(f["TOTAL HORAS DE CLASES"]?.replace(',', '.') || 0),
+                horasInvestigacion: Number(f["TOTAL HORAS INVESTIGACIÓN"]?.replace(',', '.') || 0),
+                horasVinculacion: Number(f["TOTAL HORAS VINCULACIÓN"]?.replace(',', '.') || 0),
+                horasGestion: Number(f["TOTAL HORAS GESTIÓN EDUCATIVA"]?.replace(',', '.') || 0)
+              };
+              const option = document.createElement("option");
+              option.value = docente.id;
+              option.textContent = f["APELLIDOS Y NOMBRES"] || docente.id;
+              select.appendChild(option);
+              return docente;
+            });
+
+          if (docentes.length > 0) {
+            select.value = docentes[0].id;
+            select.dispatchEvent(new Event('change'));
+          }
+        });
+    }
+
+    function actualizarValoresDesdeDocente() {
+      if (!docenteActual) return;
+
+      const clase = docenteActual.horasClase;
+      const investigacion = docenteActual.horasInvestigacion;
+      const gestion = docenteActual.horasGestion;
+      const vinculacion = docenteActual.horasVinculacion;
+
+      const planificacion = clase * 0.6;
+      const tutorias = clase * 0.25;
+      const oad = clase * 0.75;
+      const totalDocencia = clase + planificacion + tutorias + oad;
+      const totalAnual = totalDocencia + investigacion + gestion + vinculacion;
+      const porcentajeDocencia = totalAnual > 0 ? ((totalDocencia / totalAnual) * 100).toFixed(2) : 0;
+
+      camposSalida.planificacion.textContent = planificacion.toFixed(2);
+      camposSalida.tutorias.textContent = tutorias.toFixed(2);
+      camposSalida.oad.textContent = oad.toFixed(2);
+      camposSalida.totalDocencia.textContent = totalDocencia.toFixed(2);
+      camposSalida.totalAnual.textContent = totalAnual.toFixed(2);
+      camposSalida.porcentaje.textContent = porcentajeDocencia;
+
+      bloqueTotalAnual.classList.remove("text-green-700", "text-red-700");
+      bloquePorcentajeDocencia.classList.remove("text-green-700", "text-red-700");
+      mensajeAdvertencia.classList.add("hidden");
+      mensajeHorasAdvertencia.classList.add("hidden");
+      mensajeConfirmacion.classList.add("hidden");
+
+      const totalValido = Math.round(totalAnual) === 1920;
+      const porcentajeValido = porcentajeDocencia >= 60;
+
+      if (totalValido) {
+        bloqueTotalAnual.classList.add("text-green-700");
+      } else {
+        bloqueTotalAnual.classList.add("text-red-700");
+        mensajeHorasAdvertencia.classList.remove("hidden");
+      }
+
+      if (porcentajeValido) {
+        bloquePorcentajeDocencia.classList.add("text-green-700");
+      } else {
+        bloquePorcentajeDocencia.classList.add("text-red-700");
+        mensajeAdvertencia.classList.remove("hidden");
+      }
+
+      if (totalValido && porcentajeValido) {
+        mensajeConfirmacion.classList.remove("hidden");
+      }
+    }
+
+    function sincronizarDesdeInputs() {
+      docenteActual.horasClase = parseFloat(camposEntrada.clase.value) || 0;
+      docenteActual.horasInvestigacion = parseFloat(camposEntrada.investigacion.value) || 0;
+      docenteActual.horasGestion = parseFloat(camposEntrada.gestion.value) || 0;
+      docenteActual.horasVinculacion = parseFloat(camposEntrada.vinculacion.value) || 0;
+      actualizarValoresDesdeDocente();
+    }
+
+    select.addEventListener("change", () => {
+      docenteActual = docentes.find(d => d.id === select.value);
+      if (!docenteActual) return;
+      camposEntrada.clase.value = docenteActual.horasClase;
+      camposEntrada.investigacion.value = docenteActual.horasInvestigacion;
+      camposEntrada.vinculacion.value = docenteActual.horasVinculacion;
+      camposEntrada.gestion.value = docenteActual.horasGestion;
+      form.style.display = "block";
+      actualizarValoresDesdeDocente();
+    });
+
+    Object.values(camposEntrada).forEach(input => {
+      input.addEventListener("input", sincronizarDesdeInputs);
+    });
+
+    btnExportarPDF.addEventListener("click", () => {
+      const element = document.getElementById("resumenDatos");
+      html2pdf().from(element).save(`distributivo_${docenteActual?.id || "docente"}.pdf`);
+    });
+
+    btnExportarCSV.addEventListener("click", () => {
+      const rows = docentes.map(d => {
+        const planificacion = d.horasClase * 0.6;
+        const tutorias = d.horasClase * 0.25;
+        const oad = d.horasClase * 0.75;
+        const totalDocencia = d.horasClase + planificacion + tutorias + oad;
+        const totalAnual = totalDocencia + d.horasInvestigacion + d.horasGestion + d.horasVinculacion;
+        const porcentaje = totalAnual > 0 ? ((totalDocencia / totalAnual) * 100).toFixed(2) : 0;
+
+        return {
+          Identificación: d.id,
+          HorasClase: d.horasClase,
+          HorasInvestigación: d.horasInvestigacion,
+          HorasVinculación: d.horasVinculacion,
+          HorasGestión: d.horasGestion,
+          TotalDocencia: totalDocencia.toFixed(2),
+          TotalAnual: totalAnual.toFixed(2),
+          PorcentajeDocencia: porcentaje
+        };
+      });
+
+      const csv = Papa.unparse(rows);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "resumen_docentes.csv";
+      link.click();
+    });
+
+    cargarDatos();
+  </script>
+</body>
+
+</html>
